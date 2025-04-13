@@ -94,6 +94,7 @@ import zmaster587.advancedRocketry.tile.cables.TileEnergyPipe;
 import zmaster587.advancedRocketry.tile.cables.TileLiquidPipe;
 import zmaster587.advancedRocketry.tile.cables.TileWirelessTransciever;
 import zmaster587.advancedRocketry.tile.hatch.TileDataBus;
+import zmaster587.advancedRocketry.tile.hatch.TileInvHatch;
 import zmaster587.advancedRocketry.tile.hatch.TileSatelliteHatch;
 import zmaster587.advancedRocketry.tile.infrastructure.*;
 import zmaster587.advancedRocketry.tile.multiblock.*;
@@ -425,6 +426,7 @@ public class AdvancedRocketry {
         GameRegistry.registerTileEntity(TileCentrifuge.class, new ResourceLocation(Constants.modId, "ARCentrifuge"));
         GameRegistry.registerTileEntity(TilePrecisionLaserEtcher.class, new ResourceLocation(Constants.modId, "ARPrecisionLaserEtcher"));
         GameRegistry.registerTileEntity(TileSolarArray.class, new ResourceLocation(Constants.modId, "ARSolarArray"));
+        GameRegistry.registerTileEntity(TileInvHatch.class, new ResourceLocation("advancedrocketry", "tileinvhatch"));
 
         if (zmaster587.advancedRocketry.api.ARConfiguration.getCurrentConfig().enableGravityController)
             GameRegistry.registerTileEntity(TileAreaGravityController.class, "ARGravityMachine");
