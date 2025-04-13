@@ -72,7 +72,6 @@ import zmaster587.advancedRocketry.dimension.DimensionProperties.Temps;
 import zmaster587.advancedRocketry.enchant.EnchantmentSpaceBreathing;
 import zmaster587.advancedRocketry.entity.*;
 import zmaster587.advancedRocketry.event.CableTickHandler;
-import zmaster587.advancedRocketry.event.EntityEventHandler;
 import zmaster587.advancedRocketry.event.PlanetEventHandler;
 import zmaster587.advancedRocketry.event.WorldEvents;
 import zmaster587.advancedRocketry.integration.CompatibilityMgr;
@@ -134,8 +133,8 @@ import zmaster587.libVulpes.recipe.RecipesMachine;
 import zmaster587.libVulpes.tile.TileMaterial;
 import zmaster587.libVulpes.tile.energy.TilePlugBase;
 import zmaster587.libVulpes.tile.multiblock.TileMultiBlock;
-import zmaster587.libVulpes.tile.multiblock.hatch.TileFluidHatch;
 import zmaster587.libVulpes.tile.multiblock.hatch.TileInventoryHatch;
+import zmaster587.libVulpes.tile.multiblock.hatch.TileFluidHatch;
 import zmaster587.libVulpes.util.FluidUtils;
 import zmaster587.libVulpes.util.HashedBlockPosition;
 import zmaster587.libVulpes.util.InputSyncHandler;
@@ -1093,9 +1092,6 @@ public class AdvancedRocketry {
         PlanetEventHandler handle = new PlanetEventHandler();
         MinecraftForge.EVENT_BUS.register(handle);
         MinecraftForge.ORE_GEN_BUS.register(handle);
-
-        // Async weather fix
-        MinecraftForge.EVENT_BUS.register(new EntityEventHandler());
 
         CableTickHandler cable = new CableTickHandler();
         MinecraftForge.EVENT_BUS.register(cable);

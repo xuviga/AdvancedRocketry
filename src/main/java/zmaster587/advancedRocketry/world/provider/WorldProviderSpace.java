@@ -23,8 +23,6 @@ import zmaster587.advancedRocketry.stations.SpaceStationObject;
 import zmaster587.advancedRocketry.util.AstronomicalBodyHelper;
 import zmaster587.advancedRocketry.world.ChunkProviderSpace;
 
-import javax.annotation.Nullable;
-
 public class WorldProviderSpace extends WorldProviderPlanet {
     private IRenderHandler skyRender;
 
@@ -113,12 +111,10 @@ public class WorldProviderSpace extends WorldProviderPlanet {
     }
 
     @Override
-    public DimensionProperties getDimensionProperties(@Nullable BlockPos pos) {
-        if (pos != null) {
-            ISpaceObject spaceObject = getSpaceObject(pos);
-            if (spaceObject != null)
-                return (DimensionProperties) spaceObject.getProperties();
-        }
+    public DimensionProperties getDimensionProperties(BlockPos pos) {
+        ISpaceObject spaceObject = getSpaceObject(pos);
+        if (spaceObject != null)
+            return (DimensionProperties) spaceObject.getProperties();
         return DimensionManager.defaultSpaceDimensionProperties;
     }
 }
