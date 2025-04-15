@@ -1750,16 +1750,31 @@ public class EntityRocket extends EntityRocketBase implements INetworkEntity, IM
     }
 
     /**
-     * Launches the rocket post determining its height, checking whether it can launch to the selected planet and whether it can exist,
-     * among other factors. Also handles orbital height calculations
+     * Выполняет запуск ракеты.
+     *
+     * Основные шаги:
+     * 1. Пересчитывает статистику ракеты (вес, тягу, орбиту).
+     * 2. Проверяет возможность запуска:
+     *    - есть ли подходящая цель (планета, орбита),
+     *    - возможно ли путешествие между звёздными системами,
+     *    - хватает ли тяги для старта,
+     *    - присутствует ли нужный тип топлива.
+     * 3. Рассчитывает необходимое количество топлива на основе:
+     *    - массы ракеты,
+     *    - гравитации планеты назначения,
+     *    - расстояния (между измерениями/звёздами).
+     * 4. Если топлива недостаточно — запуск отменяется.
+     * 5. При успехе:
+     *    - отнимает требуемое количество топлива,
+     *    - активирует состояние полёта,
+     *    - отключает привязанные инфраструктуры.
      */
+
     @Override
     public void launch() {
 
-        if(world.isRemote)return;
-
-        if (isInFlight())
-            return;
+        if (world.isRemote) return;
+        if (isInFlight()) return;
 
         boolean allowLaunch = false;
 
@@ -1767,20 +1782,15 @@ public class EntityRocket extends EntityRocketBase implements INetworkEntity, IM
 
         NBTTagCompound nbtdata = new NBTTagCompound();
         writeToNBT(nbtdata);
-        // Can this be done without sending the entity packet again?
-        // It causes rocket to skip rendering a few frames when launching
-        PacketHandler.sendToNearby(new PacketEntity(this, (byte) 0, nbtdata), this.world.provider.getDimension(), this.getPosition(), 64);
-
+        PacketHandler.sendToNearby(new PacketEntity(this, (byte) 0, nbtdata),
+                this.world.provider.getDimension(), this.getPosition(), 64);
 
         if (ARConfiguration.getCurrentConfig().advancedWeightSystem) {
             this.stats.setWeight(storage.recalculateWeight());
             for (HashedBlockPosition pos : this.infrastructureCoords) {
                 TileEntity te = world.getTileEntity(pos.getBlockPos());
                 if (te instanceof TileRocketAssemblingMachine) {
-                    //this does not work: getWeight() returns weight + fuel. setWeight() should not include fuel weight because it is calculated on every getweight()
-                    // so if you say setweight(getweight()) and next time I call getweight() it returns weight+fuel+fuel
-                    // we do not need this anyway because the assembler has IDataSync interface and syncs itself
-                    //((TileRocketAssemblingMachine) te).getRocketStats().setWeight(this.stats.getWeight());
+                    // do nothing, assembler handles sync via IDataSync
                 }
             }
         }
@@ -1790,26 +1800,31 @@ public class EntityRocket extends EntityRocketBase implements INetworkEntity, IM
             return;
         }
 
-        if (ARConfiguration.getCurrentConfig().experimentalSpaceFlight && storage.getGuidanceComputer() != null && storage.getGuidanceComputer().isEmpty()) {
+        if (ARConfiguration.getCurrentConfig().experimentalSpaceFlight &&
+                storage.getGuidanceComputer() != null &&
+                storage.getGuidanceComputer().isEmpty()) {
             allowLaunch = true;
         } else {
+            destinationDimId = storage.getDestinationDimId(world.provider.getDimension(),
+                    (int) this.posX, (int) this.posZ);
 
-            //Get destination dimid and lock the computer
-            //TODO: lock the computer
-            destinationDimId = storage.getDestinationDimId(world.provider.getDimension(), (int) this.posX, (int) this.posZ);
-
-            if (!(DimensionManager.getInstance().canTravelTo(destinationDimId) || (destinationDimId == Constants.INVALID_PLANET && storage.getSatelliteHatches().size() != 0))) {
+            if (!(DimensionManager.getInstance().canTravelTo(destinationDimId) ||
+                    (destinationDimId == Constants.INVALID_PLANET &&
+                            storage.getSatelliteHatches().size() != 0))) {
                 setError(LibVulpes.proxy.getLocalizedString("error.rocket.cannotGetThere"));
                 return;
             }
 
             int finalDest = destinationDimId;
+
             if (destinationDimId == ARConfiguration.getCurrentConfig().spaceDimId) {
                 ISpaceObject spaceObject = null;
                 Vector3F<Float> vec = storage.getDestinationCoordinates(destinationDimId, false);
 
-                if (vec != null)
-                    spaceObject = SpaceObjectManager.getSpaceManager().getSpaceStationFromBlockCoords(new BlockPos(vec.x, vec.y, vec.z));
+                if (vec != null) {
+                    spaceObject = SpaceObjectManager.getSpaceManager()
+                            .getSpaceStationFromBlockCoords(new BlockPos(vec.x, vec.y, vec.z));
+                }
 
                 if (spaceObject != null)
                     finalDest = spaceObject.getOrbitingPlanetId();
@@ -1819,42 +1834,57 @@ public class EntityRocket extends EntityRocketBase implements INetworkEntity, IM
                 }
             }
 
-
-            //If we're on a space station get the id of the planet, not the station
-            int thisDimId = this.world.provider.getDimension();
-            if (this.world.provider.getDimension() == ARConfiguration.getCurrentConfig().spaceDimId) {
-                ISpaceObject spaceObject = SpaceObjectManager.getSpaceManager().getSpaceStationFromBlockCoords(this.getPosition());
+            int thisDimId = world.provider.getDimension();
+            if (thisDimId == ARConfiguration.getCurrentConfig().spaceDimId) {
+                ISpaceObject spaceObject = SpaceObjectManager.getSpaceManager()
+                        .getSpaceStationFromBlockCoords(this.getPosition());
                 if (spaceObject != null)
                     thisDimId = spaceObject.getProperties().getParentProperties().getId();
             }
 
-            //Check to see if it's possible to reach
-            if (finalDest != Constants.INVALID_PLANET && (!stats.isNuclear() || DimensionManager.getInstance().getDimensionProperties(finalDest).getStarId() != DimensionManager.getInstance().getDimensionProperties(thisDimId).getStarId()) && !PlanetaryTravelHelper.isTravelAnywhereInPlanetarySystem(finalDest, thisDimId)) {
+            if (finalDest != Constants.INVALID_PLANET &&
+                    (!stats.isNuclear() ||
+                            DimensionManager.getInstance().getDimensionProperties(finalDest).getStarId() !=
+                                    DimensionManager.getInstance().getDimensionProperties(thisDimId).getStarId()) &&
+                    !PlanetaryTravelHelper.isTravelAnywhereInPlanetarySystem(finalDest, thisDimId)) {
                 setError(LibVulpes.proxy.getLocalizedString("error.rocket.notSameSystem"));
                 return;
             }
         }
 
-
         if (this.stats.getWeight() >= this.stats.getThrust()) {
             allowLaunch = false;
         }
 
-        //Check to see what place we should be going to
-        //This is bad but it works and is mostly intelligible so it's here for now
-        stats.orbitHeight = (storage.getGuidanceComputer() == null) ? getEntryHeight(this.world.provider.getDimension()) : storage.getGuidanceComputer().getLaunchSequence(this.world.provider.getDimension(), this.getPosition());
+        // 💡 Добавим расчёт топлива
+        int requiredFuel = calculateRequiredFuel();
+        FuelType fuelType = getRocketFuelType();
+        int availableFuel = getFuelAmount(fuelType);
 
+        if (availableFuel < requiredFuel) {
+            setError("🚫 Недостаточно топлива! Нужно: " + requiredFuel + ", есть: " + availableFuel);
+            return;
+        }
 
-        //TODO: Clean this logic a bit?
-        if (allowLaunch || !stats.hasSeat() || ((DimensionManager.getInstance().isDimensionCreated(destinationDimId)) || destinationDimId == ARConfiguration.getCurrentConfig().spaceDimId || destinationDimId == 0)) { //Abort if destination is invalid
+        // ✅ Списываем топливо
+        setFuelAmount(fuelType, availableFuel - requiredFuel);
+        System.out.println("[Rocket] Расход топлива: " + requiredFuel + ", осталось: " + (availableFuel - requiredFuel));
+
+        stats.orbitHeight = (storage.getGuidanceComputer() == null)
+                ? getEntryHeight(world.provider.getDimension())
+                : storage.getGuidanceComputer().getLaunchSequence(world.provider.getDimension(), getPosition());
+
+        if (allowLaunch || !stats.hasSeat() ||
+                DimensionManager.getInstance().isDimensionCreated(destinationDimId) ||
+                destinationDimId == ARConfiguration.getCurrentConfig().spaceDimId ||
+                destinationDimId == 0) {
+
             setInFlight(true);
-            Iterator<IInfrastructure> connectedTiles = connectedInfrastructure.iterator();
 
             MinecraftForge.EVENT_BUS.post(new RocketLaunchEvent(this));
 
-            //Disconnect things linked to the rocket on liftoff
+            Iterator<IInfrastructure> connectedTiles = connectedInfrastructure.iterator();
             while (connectedTiles.hasNext()) {
-
                 IInfrastructure i = connectedTiles.next();
                 if (i.disconnectOnLiftOff()) {
                     disconnectInfrastructure(i);
@@ -1863,6 +1893,45 @@ public class EntityRocket extends EntityRocketBase implements INetworkEntity, IM
             }
         }
     }
+
+
+    private int calculateRequiredFuel() {
+        double mass = 0.0;
+        Object massObj = stats.getStatTag("mass");
+
+        // 1️⃣ Проверка на null и приведение к Number
+        if (massObj instanceof Number) {
+            mass = ((Number) massObj).doubleValue();
+        }
+
+        double distanceFactor = 1.0;
+        if (destinationDimId != world.provider.getDimension()) {
+            distanceFactor = 2.0;
+        }
+
+        double gravity = 1.0;
+        try {
+            gravity = DimensionManager.getInstance()
+                    .getDimensionProperties(destinationDimId)
+                    .gravitationalMultiplier;
+        } catch (Exception e) {
+            // fallback: остаётся gravity = 1.0
+        }
+
+        // 2️⃣ Гарантируем, что gravity не ноль или отрицательная
+        if (gravity < 0.01) {
+            gravity = 1.0;
+        }
+
+        // 3️⃣ baseRate из ARConfiguration — должен быть double
+        double baseRate = ARConfiguration.getCurrentConfig().baseFuelRate;
+
+        // 4️⃣ Финальный расчёт с округлением вверх
+        return (int) Math.ceil(mass * distanceFactor * gravity * baseRate);
+    }
+
+
+
 
     /**
      * Damages the ground beneath the rocket, depending on block type

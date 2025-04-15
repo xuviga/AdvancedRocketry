@@ -42,50 +42,52 @@ public enum WeightEngine {
     }
 
     public float getWeight(ItemStack stack) {
-        if (stack.isEmpty() || stack.getItem().getRegistryName()==null) {
-            return 0;
-        }
-        double weight = weights.getOrDefault(stack.getItem().getRegistryName().toString(), -1.0) * stack.getCount();
-        if (weight >= 0) {
-            return (float) weight;
+        if (stack == null || stack.isEmpty() || stack.getItem().getRegistryName() == null) {
+            return 0f;
         }
 
+        String registryName = stack.getItem().getRegistryName().toString();
+        double knownWeight = weights.getOrDefault(registryName, -1.0);
+
+        if (knownWeight >= 0) {
+            return (float) (knownWeight * stack.getCount());
+        }
+
+        // Предустановленные веса
         double tankWeight = 0.2;
-        double motorWeight = 2;
+        double motorWeight = 2.0;
         double guidanceComputerWeight = 1.8;
+        double pressureTankWeight = 5.0;
+        double satelliteHatchWeight = 5.0;
 
-        double pressureTankWeight = 5;
-        double satelliteHatchWeight = 5;
-
-        // TODO Rewrite!!!!
         if (stack.getItem() instanceof ItemBlock) {
             Block block = ((ItemBlock) stack.getItem()).getBlock();
 
-            if (block instanceof BlockFuelTank){
-                weights.put(stack.getItem().getRegistryName().toString(), (double) tankWeight);
+            if (block instanceof BlockFuelTank) {
+                weights.put(registryName, tankWeight);
                 return (float) tankWeight;
             }
-            if (block instanceof BlockRocketMotor || block instanceof BlockBipropellantRocketMotor){
-                weights.put(stack.getItem().getRegistryName().toString(), (double) motorWeight);
+            if (block instanceof BlockRocketMotor || block instanceof BlockBipropellantRocketMotor) {
+                weights.put(registryName, motorWeight);
                 return (float) motorWeight;
             }
-            if (block instanceof BlockPressurizedFluidTank){
-                weights.put(stack.getItem().getRegistryName().toString(), (double) pressureTankWeight);
+            if (block instanceof BlockPressurizedFluidTank) {
+                weights.put(registryName, pressureTankWeight);
                 return (float) pressureTankWeight;
             }
-            if (stack.getItem().getRegistryName().toString().equals("advancedrocketry:guidancecomputer")){
-                weights.put(stack.getItem().getRegistryName().toString(), (double) guidanceComputerWeight);
+            if ("advancedrocketry:guidancecomputer".equals(registryName)) {
+                weights.put(registryName, guidanceComputerWeight);
                 return (float) guidanceComputerWeight;
             }
-            if (stack.getItem().getRegistryName().toString().equals("advancedrocketry:loader")){
-                weights.put(stack.getItem().getRegistryName().toString(), (double) satelliteHatchWeight);
+            if ("advancedrocketry:loader".equals(registryName)) {
+                weights.put(registryName, satelliteHatchWeight);
                 return (float) satelliteHatchWeight;
             }
         }
 
-        weights.put(stack.getItem().getRegistryName().toString(), 0.1);
-        return 0.1F;
-        // TODO Make weight selection by regular expressions
+        // Значение по умолчанию
+        weights.put(registryName, 0.1);
+        return 0.1f;
     }
 
     public float getWeight(Collection<ItemStack> stacks) {
@@ -93,48 +95,59 @@ public enum WeightEngine {
     }
 
     public float getWeight(World world, BlockPos pos) {
-        return getWeight(world.getTileEntity(pos), world.getBlockState(pos).getBlock());
+        if (world == null || pos == null) return 0;
+
+        TileEntity te = null;
+        Block block = null;
+
+        try {
+            te = world.getTileEntity(pos);
+        } catch (Exception ignored) {}
+
+        try {
+            block = world.getBlockState(pos).getBlock();
+        } catch (Exception ignored) {}
+
+        return getWeight(te, block);
     }
 
     public float getWeight(FluidStack stack) {
+        if (stack == null || stack.getFluid() == null) return 0;
         return getWeight(stack.getFluid(), stack.amount);
     }
 
     public float getWeight(Fluid fluid, float amount) {
-        double weight = weights.getOrDefault(fluid.getUnlocalizedName(), -1.0) * amount;
-        if (weight >= 0) {
-            return (float) weight;
+        if (fluid == null || amount <= 0) return 0;
+        double weightPerMb = weights.getOrDefault(fluid.getUnlocalizedName(), -1.0);
+
+        if (weightPerMb >= 0) {
+            return (float) (weightPerMb * amount);
         }
 
-        weight = 0.001 * amount;
-
+        // Значение по умолчанию: 1 кг за 1 литр
+        float defaultWeight = 0.001f * amount;
         weights.put(fluid.getUnlocalizedName(), 0.001);
-        return (float) weight;
+        return defaultWeight;
     }
 
     public float getTEWeight(TileEntity te) {
+        if (!ARConfiguration.getCurrentConfig().advancedWeightSystemInventories || te == null)
+            return 0;
 
-        if(!ARConfiguration.getCurrentConfig().advancedWeightSystemInventories) return 0;
+        float weight = 0f;
 
-        float weight = 0;
-
-        if (te == null) {
-            return weight;
-        }
-
-        IItemHandler capability = te.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, null);
-        if (capability != null) {
-            for (int i = 0; i < capability.getSlots(); i++) {
-                weight += getWeight(capability.getStackInSlot(i));
+        IItemHandler itemHandler = te.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, null);
+        if (itemHandler != null) {
+            for (int i = 0; i < itemHandler.getSlots(); i++) {
+                weight += getWeight(itemHandler.getStackInSlot(i));
             }
         }
 
-
         IFluidHandler fluidHandler = te.getCapability(CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, null);
         if (fluidHandler != null) {
-            for (IFluidTankProperties info : fluidHandler.getTankProperties()) {
-                if (info != null && info.getContents() != null) {
-                    weight += getWeight(info.getContents());
+            for (IFluidTankProperties tank : fluidHandler.getTankProperties()) {
+                if (tank != null && tank.getContents() != null) {
+                    weight += getWeight(tank.getContents());
                 }
             }
         }
@@ -142,14 +155,17 @@ public enum WeightEngine {
         return weight;
     }
 
-    public float getWeight(TileEntity te, Block blk) {
-        if (blk == null) {
-            // if block is null, TE should be not null
-            blk = te.getBlockType();
+    public float getWeight(TileEntity te, Block block) {
+        if (block == null) {
+            if (te != null) {
+                block = te.getBlockType();
+            } else {
+                return 0;
+            }
         }
-        float weight = getWeight(new ItemStack(blk));
 
-        return weight + getTEWeight(te);
+        float blockWeight = getWeight(new ItemStack(block));
+        return blockWeight + getTEWeight(te);
     }
 
     public float getWeight(World world, Collection<BlockPos> poses) {
@@ -160,23 +176,47 @@ public enum WeightEngine {
         File f = new File(file);
         if (!f.exists()) {
             weights = new HashMap<>();
+            // Предустановленные веса
+            weights.put("advancedrocketry:guidancecomputer", 1.8);
+            weights.put("advancedrocketry:loader", 5.0);
+            weights.put("advancedrocketry:fuelTank", 0.2);
+            weights.put("advancedrocketry:rocketMotor", 2.0);
+            weights.put("advancedrocketry:rocketMotorBipropellant", 2.0);
+            weights.put("advancedrocketry:pressurizedFluidTank", 5.0);
+            weights.put("minecraft:chest", 0.5);
+            weights.put("minecraft:furnace", 1.5);
+            weights.put("minecraft:hopper", 1.0);
+            weights.put("minecraft:glass", 0.1);
+            weights.put("minecraft:iron_block", 3.0);
+            weights.put("minecraft:gold_block", 2.5);
+            weights.put("minecraft:diamond_block", 2.0);
+            weights.put("minecraft:water_bucket", 1.0);
+            weights.put("minecraft:lava_bucket", 2.0);
+            weights.put("minecraft:stone", 0.2);
+            weights.put("minecraft:cobblestone", 0.2);
+            weights.put("minecraft:dirt", 0.1);
+            weights.put("minecraft:sand", 0.1);
+            weights.put("minecraft:gravel", 0.1);
+            save(); // Автосохранение нового файла
             return;
         }
-        try (Reader r = new FileReader(file)) {
-            Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
-            JsonObject root = GSON.fromJson(r, JsonObject.class);
-            weights = GSON.fromJson(root.getAsJsonObject("individual"), HashMap.class);
+        try (Reader r = new FileReader(f)) {
+            Gson gson = new GsonBuilder().disableHtmlEscaping().create();
+            JsonObject root = gson.fromJson(r, JsonObject.class);
+            weights = gson.fromJson(root.getAsJsonObject("individual"), HashMap.class);
         } catch (Exception e) {
             e.printStackTrace();
+            weights = new HashMap<>();
         }
     }
 
+
     public void save() {
         try (FileWriter w = new FileWriter(file)) {
-            Gson GSON = new GsonBuilder().disableHtmlEscaping().setPrettyPrinting().create();
-            JsonObject json = new JsonObject();
-            json.add("individual", GSON.toJsonTree(weights));
-            w.write(GSON.toJson(json));
+            Gson gson = new GsonBuilder().disableHtmlEscaping().setPrettyPrinting().create();
+            JsonObject root = new JsonObject();
+            root.add("individual", gson.toJsonTree(weights));
+            w.write(gson.toJson(root));
         } catch (Exception e) {
             e.printStackTrace();
         }

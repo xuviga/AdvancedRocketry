@@ -290,6 +290,7 @@ public class ARConfiguration {
 
     @ConfigProperty
     public double increaseWearIntensityProb;
+    public double baseFuelRate = 1.5;
 
     public ARConfiguration() {}
 
@@ -366,6 +367,7 @@ public class ARConfiguration {
         arConfig.blockTankCapacity = (float) config.get(Configuration.CATEGORY_GENERAL, "blockTankCapacity", 1.0f, "Multiplier for the pressurized tank's (block) capacity", 0, Float.MAX_VALUE).getDouble();
         arConfig.blockEnergyHatchCapacityMultiplier = (float) config.get(Configuration.CATEGORY_GENERAL, "blockEnergyHatchCapacityMultiplier", 1.0f, "Multiplier for the energy hatch capacity", 0, Float.MAX_VALUE).getDouble();
         arConfig.blockLiquidHatchCapacityMultiplier = (float) config.get(Configuration.CATEGORY_GENERAL, "blockLiquidHatchCapacityMultiplier", 1.0f, "Multiplier for the liquid hatch (in/out) capacity", 0, Float.MAX_VALUE).getDouble();
+        arConfig.baseFuelRate = config.get(ROCKET, "baseFuelRate", 1.5, "Базовый множитель расхода топлива").getDouble();
 
         //Enriched Lava in the centrifuge
         arConfig.lavaCentrifugeOutputs = config.getStringList("lavaCentrifugeOutputs", Configuration.CATEGORY_GENERAL, new String[]{"nuggetCopper:100", "nuggetIron:100", "nuggetTin:100", "nuggetLead:100", "nuggetSilver:100", "nuggetGold:75", "nuggetDiamond:10", "nuggetUranium:10", "nuggetIridium:1"}, "Outputs and chances of objects from Enriched Lava in the Centrifuge.  Format: <oredictionaryEntry>:<weight>.  Larger weights are more frequent");
